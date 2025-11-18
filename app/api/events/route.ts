@@ -12,54 +12,80 @@ export async function POST(req: NextRequest) {
   try {
     await connectDB();
 
-    const body = await req.json();
+    // Expect multipart/form-data with both text fields and an image file.
+    const formData = await req.formData();
 
-    const {
-      title,
-      description,
-      overview,
-      image,
-      venue,
-      location,
-      date,
-      time,
-      mode,
-      audience,
-      agenda,
-      organizer,
-      tags,
-    } = body;
+    const title = formData.get("title") as string | null;
+    const description = formData.get("description") as string | null;
+    const overview = formData.get("overview") as string | null;
+    const venue = formData.get("venue") as string | null;
+    const location = formData.get("location") as string | null;
+    const date = formData.get("date") as string | null;
+    const time = formData.get("time") as string | null;
+    const mode = formData.get("mode") as string | null;
+    const audience = formData.get("audience") as string | null;
+    const organizer = formData.get("organizer") as string | null;
+    const agendaRaw = formData.get("agenda") as string | null;
+    const tagsRaw = formData.get("tags") as string | null;
+    const file = formData.get("image") as File | null;
+
+    if (!file) {
+      return NextResponse.json(
+        { message: "Image file is required" },
+        { status: 400 },
+      );
+    }
+
+    // Convert comma-separated strings into arrays; adjust if you send JSON instead.
+    const agenda = agendaRaw
+      ? agendaRaw.split(",").map((s) => s.trim()).filter(Boolean)
+      : [];
+    const tags = tagsRaw
+      ? tagsRaw.split(",").map((s) => s.trim()).filter(Boolean)
+      : [];
 
     // Basic presence check to fail fast with a 400 instead of a generic 500.
-    if (
-      !title ||
-      !description ||
-      !overview ||
-      !image ||
-      !venue ||
-      !location ||
-      !date ||
-      !time ||
-      !mode ||
-      !audience ||
-      !organizer ||
-      !Array.isArray(agenda) ||
-      agenda.length === 0 ||
-      !Array.isArray(tags) ||
-      tags.length === 0
-    ) {
+// Agenda & tags optional
+      if (
+          !title ||
+          !description ||
+          !overview ||
+          !venue ||
+          !location ||
+          !date ||
+          !time ||
+          !mode ||
+          !audience ||
+          !organizer
+      ) {
+
       return NextResponse.json(
         { message: "Missing or invalid required fields for Event." },
         { status: 400 },
       );
     }
 
-    // Refactor: build an explicit event object before creation
+    const imageBuffer = await file.arrayBuffer();
+    const buffer = Buffer.from(imageBuffer);
+
+    // Upload the image buffer to Cloudinary and type the result to avoid TS18046 (unknown type)
+    const uploadResult = await new Promise<import("cloudinary").UploadApiResponse>((resolve, reject) => {
+      const stream = cloudinary.uploader.upload_stream(
+        { resource_type: "image", folder: "DevEvent" },
+        (error, result) => {
+          if (error) return reject(error);
+          if (!result) return reject(new Error("Cloudinary upload returned no result"));
+          resolve(result);
+        },
+      );
+      stream.end(buffer);
+    });
+
     const event = {
       title,
       description,
       overview,
-      image,
+      image: uploadResult.secure_url,
       venue,
       location,
       date,
@@ -71,32 +97,8 @@ export async function POST(req: NextRequest) {
       tags,
     };
 
-    const file  = formData.get('image') as File;
-
-    if(!file){
-        return NextResponse.json({
-            message: 'Image file is required'
-        },{status:400})
-    }
-
-    const imageBuffer = await file.arrayBuffer();
-
-    const buffer = Buffer.from(imageBuffer);
-
-    const uploadResult =  await new Promise((resolve, reject) => {
-            cloudinary.uploader.upload_stream((error, result) => {
-                cloudinary.uploader.upload_stream(
-                    {
-                        resource_type: 'image', folder :'DevEvent'},(error,results)=>{
-                        if(error) return reject(error);
-
-                    }
-
-                ).end(buffer);
-            })
-    })
-
     const createdEvent = await Event.create(event);
+
 
 
 
@@ -122,4 +124,17 @@ export async function POST(req: NextRequest) {
       { status: 500 },
     );
   }
+}
+
+export async  function GET(req: NextRequest) {
+      try{
+          await connectDB();
+
+          const events = await Event.find().sort({ createdAt: -1 });
+
+          return NextResponse.json({message: "Events fetched successfully", events},{status:200});
+      }
+      catch (e) {
+          return  NextResponse.json({message:'Event fetching failed', error:e})
+      }
 }
