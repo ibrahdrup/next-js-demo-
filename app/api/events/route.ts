@@ -3,6 +3,8 @@ import mongoose from "mongoose";
 
 import connectDB from "@/lib/mongodb";
 import Event from "@/database/event.model";
+import {v2 as cloudinary} from 'cloudinary'
+
 
 // POST /api/events
 // Accepts a JSON body with all required Event fields and creates a new Event document.
@@ -52,7 +54,8 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const createdEvent = await Event.create({
+    // Refactor: build an explicit event object before creation
+    const event = {
       title,
       description,
       overview,
@@ -66,7 +69,36 @@ export async function POST(req: NextRequest) {
       agenda,
       organizer,
       tags,
-    });
+    };
+
+    const file  = formData.get('image') as File;
+
+    if(!file){
+        return NextResponse.json({
+            message: 'Image file is required'
+        },{status:400})
+    }
+
+    const imageBuffer = await file.arrayBuffer();
+
+    const buffer = Buffer.from(imageBuffer);
+
+    const uploadResult =  await new Promise((resolve, reject) => {
+            cloudinary.uploader.upload_stream((error, result) => {
+                cloudinary.uploader.upload_stream(
+                    {
+                        resource_type: 'image', folder :'DevEvent'},(error,results)=>{
+                        if(error) return reject(error);
+
+                    }
+
+                ).end(buffer);
+            })
+    })
+
+    const createdEvent = await Event.create(event);
+
+
 
     return NextResponse.json(createdEvent, { status: 201 });
   } catch (error) {
