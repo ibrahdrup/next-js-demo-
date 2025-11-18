@@ -53,6 +53,7 @@ export default function RootLayout({
 
 
         <main>
+
             {children}
         </main>
       </body>
