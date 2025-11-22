@@ -11,10 +11,18 @@ import {v2 as cloudinary} from 'cloudinary'
 export async function POST(req: NextRequest) {
   try {
     await connectDB();
-
+      console.log("Content-Type:", req.headers.get("content-type"));
+      try {
+          // Clone the request to read text without consuming the stream for formData()
+          const text = await req.clone().text();
+          console.log("Raw Body Preview:", text.substring(0, 500));
+      } catch (e) {
+          console.log("Could not read raw body:", e);
+      }
     // Expect multipart/form-data with both text fields and an image file.
-    const formData = await req.formData();
+    const formData = await req.formData ();
 
+      console.log("Hello test")
     const title = formData.get("title") as string | null;
     const description = formData.get("description") as string | null;
     const overview = formData.get("overview") as string | null;
@@ -59,11 +67,29 @@ export async function POST(req: NextRequest) {
           !organizer
       ) {
 
-      return NextResponse.json(
-        { message: "Missing or invalid required fields for Event." },
-        { status: 400 },
-      );
-    }
+          return NextResponse.json(
+              {
+                  message: "Missing or invalid required fields for Event.",
+                  received: {
+                      title,
+                      description,
+                      overview,
+                      venue,
+                      location,
+                      date,
+                      time,
+                      mode,
+                      audience,
+                      organizer,
+                  },
+              },
+              { status: 400 },
+          );
+      }
+
+
+      // const imageBuffer = await file.arrayBuffer();
+
 
     const imageBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(imageBuffer);
@@ -110,6 +136,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         {
           message: "Event validation failed",
+
           errors: error.errors,
         },
         { status: 400 },

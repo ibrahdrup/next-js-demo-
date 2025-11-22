@@ -34,16 +34,16 @@ const BookingSchema = new Schema<IBooking>(
   },
 );
 
-// Index eventId for faster lookups by event
+// Index eventId for faster lookups by events
 BookingSchema.index({ eventId: 1 });
 
-// Pre-save hook to ensure the referenced event exists
+// Pre-save hook to ensure the referenced events exists
 BookingSchema.pre<IBooking>("save", async function () {
   const booking = this;
 
   const eventExists = await Event.exists({ _id: booking.eventId });
   if (!eventExists) {
-    throw new Error("Cannot create booking: referenced event does not exist.");
+    throw new Error("Cannot create booking: referenced events does not exist.");
   }
 });
 
