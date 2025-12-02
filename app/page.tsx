@@ -42,7 +42,7 @@ const Page = async () => {
           {events &&
             events.length > 0 &&
             events.map((event: IEvent) => (
-              <li key={event._id}>
+              <li key={event.slug}>
                 <EventCard {...event} />
               </li>
             ))}

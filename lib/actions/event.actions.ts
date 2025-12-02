@@ -3,10 +3,14 @@
 import connectDB from "@/lib/mongodb";
 import Event from "@/database/event.model";
 
-export const getSimilarEventsBySlug = async (slug:string)=>{
+export const getSimilarEventsBySlug = async (slug: string) => {
     try {
         await connectDB();
-        const event = await Event.findOne({ slug }).lean();
+        // Only fetch the tags to avoid typing issues and unnecessary data transfer
+        const event = await Event.findOne({ slug })
+            .select('tags')
+            .lean<{ tags?: string[] }>();
+
         if (!event || !Array.isArray(event.tags) || event.tags.length === 0) {
             return [];
         }
@@ -14,7 +18,8 @@ export const getSimilarEventsBySlug = async (slug:string)=>{
         // Find other events that share at least one tag, excluding the current event
         const similar = await Event.find(
             {
-                _id: { $ne: event._id },
+                // Exclude current event by slug to avoid relying on _id in types
+                slug: { $ne: slug },
                 tags: { $in: event.tags },
             },
             // Project only fields needed by the card

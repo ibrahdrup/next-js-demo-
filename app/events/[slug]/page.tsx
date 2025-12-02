@@ -6,6 +6,7 @@ import { IEvent } from "@/database/event.model";
 import BookEvent from "@/components/BookEvent";
 import {getSimilarEventsBySlug} from "@/lib/actions/event.actions";
 import EventCard from "@/components/EventCard";
+import {cacheLife} from "next/cache";
 
 
 const EventDetailsItem  = ({
@@ -43,11 +44,17 @@ const EventTags = ({ tags }: { tags: string[] }) => (
 );
 
 
-const EventDetailsPage = async ({ params }: { params: Promise<{ slug: string }> }) => {
-    const { slug } = await params;
+const EventDetailsPage =
+
+    async ({ params }: { params: { slug: string } }) => {
+
+    'use cache'
+        cacheLife('hours')
+
+    const { slug } =await params;
 
 
-const BASE_URL= process.env.NEXT_PUBLIC_BASE_URL
+    // Use the top-level BASE_URL
     let eventData: IEvent | null = null;
 
     try {
@@ -102,6 +109,9 @@ const BASE_URL= process.env.NEXT_PUBLIC_BASE_URL
 
     const  similarEvents: IEvent[]= await getSimilarEventsBySlug(slug)
 
+    // Safely extract eventId from the fetched data (API returns Mongo _id)
+    const eventId: string = ((eventData as unknown as { _id?: { toString?: () => string } })?._id?.toString?.()) || "";
+
     return (
         <section id="event">
             <div className="header">
@@ -150,7 +160,7 @@ const BASE_URL= process.env.NEXT_PUBLIC_BASE_URL
             <div className={"details"}>
                 <aside className="booking">
                    <div className="signup-card"></div>
-                        ,<h2>Book Your Spot</h2>
+                        <h2>Book Your Spot</h2>
                     {
                         bookings>0?
                             (
@@ -162,7 +172,9 @@ const BASE_URL= process.env.NEXT_PUBLIC_BASE_URL
                                 Be the first to know when the event starts!
                             </p>)
                     }
-                    <BookEvent />
+                    {eventId ? (
+                        <BookEvent eventId={eventId} slug={slug} />
+                    ) : null}
 
                 </aside>
             </div>
