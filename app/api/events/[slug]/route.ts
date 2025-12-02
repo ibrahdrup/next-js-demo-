@@ -5,10 +5,10 @@ import connectDB from "@/lib/mongodb";
 import Event, { type IEvent } from "@/database/event.model";
 
 // Shape of the dynamic route params expected by Next.js App Router
-interface EventSlugParams {
-  params: {
-    slug?: string;
-  };
+interface RouteParams {
+  params: Promise<{
+    slug: string;
+  }>;
 }
 
 /**
@@ -18,10 +18,12 @@ interface EventSlugParams {
  */
 export async function GET(
   _req: NextRequest,
-  { params }: EventSlugParams,
+  { params }: RouteParams,
 ): Promise<NextResponse> {
   try {
-    const { slug } = params ?? {};
+      await connectDB();
+
+    const { slug } = await params ;
 
     // Validate slug presence
     if (!slug || !slug.trim()) {
@@ -31,7 +33,7 @@ export async function GET(
       );
     }
 
-    await connectDB();
+
 
     const normalizedSlug = slug.trim().toLowerCase();
 

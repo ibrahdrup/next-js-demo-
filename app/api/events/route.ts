@@ -8,7 +8,7 @@ import {v2 as cloudinary} from 'cloudinary'
 
 // POST /api/events
 // Accepts a JSON body with all required Event fields and creates a new Event document.
-export async function POST(req: NextRequest) {
+export async function POST(req: NextRequest)  {
   try {
     await connectDB();
       console.log("Content-Type:", req.headers.get("content-type"));
@@ -33,6 +33,7 @@ export async function POST(req: NextRequest) {
     const mode = formData.get("mode") as string | null;
     const audience = formData.get("audience") as string | null;
     const organizer = formData.get("organizer") as string | null;
+    // Raw values (may be JSON string, comma-separated string, or multiple fields)
     const agendaRaw = formData.get("agenda") as string | null;
     const tagsRaw = formData.get("tags") as string | null;
     const file = formData.get("image") as File | null;
@@ -43,49 +44,96 @@ export async function POST(req: NextRequest) {
         { status: 400 },
       );
     }
+    // Normalize agenda and tags from form-data
+    // Support formats:
+    // - Multiple fields: agenda=Item1&agenda=Item2
+    // - JSON array string: agenda=["Item1","Item2"]
+    // - Comma-separated string: agenda="Item1, Item2"
+    const parseList = (values: FormDataEntryValue[], singleFallback: string | null, fieldName: string): string[] => {
+      // If multiple entries, treat them as a list
+      if (values.length > 1) {
+        return values
+          .map(v => (typeof v === 'string' ? v : ''))
+          .map(s => s.trim())
+          .filter(Boolean);
+      }
+      // Single entry (or none)
+      const single = (values[0] ?? singleFallback) as string | null;
+      if (!single) return [];
+      const trimmed = single.trim();
+      if (!trimmed) return [];
+      // Try JSON array first if it looks like JSON
+      if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
+        try {
+          const arr = JSON.parse(trimmed);
+          if (Array.isArray(arr)) {
+            return arr
+              .map((x) => (typeof x === 'string' ? x : String(x)))
+              .map((s) => s.trim())
+              .filter(Boolean);
+          }
+        } catch (e) {
+          // fall through to comma-separated parsing below
+        }
+      }
+      // Fallback: comma-separated
+      return trimmed
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean);
+    };
+
+    const agendaValues = formData.getAll('agenda');
+    const tagsValues = formData.getAll('tags');
+
+    const agenda = parseList(agendaValues, agendaRaw, 'agenda');
+    const tags = parseList(tagsValues, tagsRaw, 'tags');
 
     // Convert comma-separated strings into arrays; adjust if you send JSON instead.
-    const agenda = agendaRaw
-      ? agendaRaw.split(",").map((s) => s.trim()).filter(Boolean)
-      : [];
-    const tags = tagsRaw
-      ? tagsRaw.split(",").map((s) => s.trim()).filter(Boolean)
-      : [];
+    // const agenda = agendaRaw
+    //   ? agendaRaw.split(",").map((s) => s.trim()).filter(Boolean)
+    //   : [];
+    // const tags = tagsRaw
+    //   ? tagsRaw.split(",").map((s) => s.trim()).filter(Boolean)
+    //   : [];
 
     // Basic presence check to fail fast with a 400 instead of a generic 500.
-// Agenda & tags optional
-      if (
-          !title ||
-          !description ||
-          !overview ||
-          !venue ||
-          !location ||
-          !date ||
-          !time ||
-          !mode ||
-          !audience ||
-          !organizer
-      ) {
+    if (
+        !title ||
+        !description ||
+        !overview ||
+        !venue ||
+        !location ||
+        !date ||
+        !time ||
+        !mode ||
+        !audience ||
+        !organizer ||
+        agenda.length === 0 ||
+        tags.length === 0
+    ) {
 
-          return NextResponse.json(
-              {
-                  message: "Missing or invalid required fields for Event.",
-                  received: {
-                      title,
-                      description,
-                      overview,
-                      venue,
-                      location,
-                      date,
-                      time,
-                      mode,
-                      audience,
-                      organizer,
-                  },
-              },
-              { status: 400 },
-          );
-      }
+        return NextResponse.json(
+            {
+                message: "Missing or invalid required fields for Event.",
+                received: {
+                    title,
+                    description,
+                    overview,
+                    venue,
+                    location,
+                    date,
+                    time,
+                    mode,
+                    audience,
+                    organizer,
+                    agendaCount: agenda.length,
+                    tagsCount: tags.length,
+                },
+            },
+            { status: 400 },
+        );
+    }
 
 
       // const imageBuffer = await file.arrayBuffer();
@@ -123,6 +171,7 @@ export async function POST(req: NextRequest) {
       tags,
     };
 
+    // Create the event document with the assembled payload
     const createdEvent = await Event.create(event);
 
 
@@ -158,6 +207,7 @@ export async  function GET(req: NextRequest) {
           await connectDB();
 
           const events = await Event.find().sort({ createdAt: -1 });
+
 
           return NextResponse.json({message: "Events fetched successfully", events},{status:200});
       }
